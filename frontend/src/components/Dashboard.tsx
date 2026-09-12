@@ -500,8 +500,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           )}
         </main>
 
-        {/* Right-Hand 48px Telemetry Control Rail */}
-        <aside className="w-full md:w-[56px] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex md:flex-col justify-between items-center p-3 shrink-0 text-[10px] tracking-widest uppercase">
+        {/* Right-Hand 56px Fixed Telemetry Control Rail */}
+        <aside className="w-full md:w-[56px] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex md:flex-col justify-between items-center p-3 shrink-0 text-[10px] tracking-widest uppercase sticky bottom-0 md:top-[36px] md:h-[calc(100vh-36px)] z-40">
           {/* Navigation Controls */}
           <div className="flex md:flex-col gap-2 w-full">
             <button

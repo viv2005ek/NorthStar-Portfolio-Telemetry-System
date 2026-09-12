@@ -1,23 +1,38 @@
-# NORTHSTAR // Portfolio Intelligence Telemetry System
+<p align="left">
+  <img src="frontend/assets/Flam-AI-scaled.webp" width="56" alt="Northstar Portfolio Logo" />
+</p>
+
+# Northstar Portfolio
 
 Institutional-Grade Multi-Tenant Investment Portfolio Analytics Platform  
 Cold on the surface, precise underneath, lit by a single acid accent.
 
 ---
 
-## Visual Interface Overview
+## Visual Interface Overview (2x2 Grid)
 
-### 1. Operator Login & Authentication
-![Login Interface](frontend/assets/image.png)
-
-### 2. Validation Error Handling (Dirty CSV Row Rejection)
-![Dirty CSV Validation Error](frontend/assets/image1.png)
-
-### 3. Valid Portfolio Holdings Telemetry
-![Valid Portfolio Holdings Telemetry](frontend/assets/image2.png)
-
-### 4. Asset Allocation Breakdown & Analytics
-![Asset Allocation Breakdown](frontend/assets/image3.png)
+<table width="100%">
+  <tr>
+    <td width="50%" align="center">
+      <b>01 // Operator Sign-In Interface</b><br/><br/>
+      <img src="frontend/assets/image.png" alt="Login Interface" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <b>02 // Validation Error Handling (Dirty CSV)</b><br/><br/>
+      <img src="frontend/assets/image1.png" alt="Dirty CSV Validation Error" width="100%" />
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <b>03 // Portfolio Holdings & Telemetry</b><br/><br/>
+      <img src="frontend/assets/image2.png" alt="Valid Portfolio Holdings Telemetry" width="100%" />
+    </td>
+    <td width="50%" align="center">
+      <b>04 // Asset Allocation Breakdown</b><br/><br/>
+      <img src="frontend/assets/image3.png" alt="Asset Allocation Breakdown" width="100%" />
+    </td>
+  </tr>
+</table>
 
 ---
 
