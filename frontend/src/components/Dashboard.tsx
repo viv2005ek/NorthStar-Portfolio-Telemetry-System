@@ -101,8 +101,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
 
   return (
     <div className="min-h-screen bg-[#050505] text-[#F5F5F7] flex flex-col font-mono selection:bg-[#D4FF3F] selection:text-[#050505] relative overflow-x-hidden">
-      {/* Top Telemetry Header (36px high, razor hairline bottom) */}
-      <header className="h-[36px] border-b border-[#1a1c23] bg-[#0a0b0e] px-4 flex items-center justify-between shrink-0 text-xs tracking-widest uppercase">
+      {/* Top Telemetry Header (Fixed Sticky 36px) */}
+      <header className="sticky top-0 z-50 h-[36px] border-b border-[#1a1c23] bg-[#0a0b0e] px-4 flex items-center justify-between shrink-0 text-xs tracking-widest uppercase">
         <div className="flex items-center gap-3">
           <img src={flamLogo} alt="Flam AI Logo" className="h-4 w-auto object-contain opacity-90" />
           <span className="w-1.5 h-1.5 bg-[#D4FF3F] inline-block animate-pulse" />
@@ -139,10 +139,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </div>
       </header>
 
-      {/* Main Split Layout */}
-      <div className="flex-1 flex flex-col md:flex-row min-w-0">
+      {/* Main Layout Container */}
+      <div className="flex-1 flex flex-col md:flex-row min-w-0 relative">
         {/* Main Content View */}
-        <main className="flex-1 flex flex-col p-6 md:p-10 space-y-10 max-w-7xl w-full mx-auto">
+        <main className="flex-1 flex flex-col p-6 md:p-10 space-y-10 max-w-7xl w-full mx-auto md:mr-[56px] pb-20 md:pb-10">
           {/* Global Error Banner */}
           {error && (
             <div className="p-3 bg-hatched-negative border border-[#FF3B30] text-[#FF3B30] text-xs uppercase tracking-widest">
@@ -500,8 +500,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
           )}
         </main>
 
-        {/* Right-Hand 56px Fixed Telemetry Control Rail */}
-        <aside className="w-full md:w-[56px] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex md:flex-col justify-between items-center p-3 shrink-0 text-[10px] tracking-widest uppercase sticky bottom-0 md:top-[36px] md:h-[calc(100vh-36px)] z-40">
+        {/* Fixed 56px Telemetry Control Rail */}
+        <aside className="fixed bottom-0 left-0 right-0 md:left-auto md:right-0 md:top-[36px] w-full md:w-[56px] h-[48px] md:h-[calc(100vh-36px)] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex flex-row md:flex-col justify-between items-center p-3 shrink-0 text-[10px] tracking-widest uppercase z-40">
           {/* Navigation Controls */}
           <div className="flex md:flex-col gap-2 w-full">
             <button

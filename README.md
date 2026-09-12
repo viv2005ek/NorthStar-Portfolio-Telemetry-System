@@ -132,6 +132,10 @@ date,ticker,asset_class,quantity,price
 ### Period Return Formula
 The period return metric is computed across the dataset timeframe:
 
+```text
+period_return = (end_market_value - start_market_value) / start_market_value
+```
+
 $$\text{period\_return} = \frac{\text{end\_market\_value} - \text{start\_market\_value}}{\text{start\_market\_value}}$$
 
 - Start Market Value: Sum of `quantity * price` for all holdings on the earliest date (`MIN(holding_date)`).
