@@ -1,112 +1,105 @@
-# ✦ NORTHSTAR // Portfolio Intelligence Telemetry System
+# NORTHSTAR // Portfolio Intelligence Telemetry System
 
-> **Institutional-Grade Multi-Tenant Investment Portfolio Analytics Platform**  
-> *Cold on the surface, precise underneath, lit by a single acid accent.*
-
----
-
-## ✦ Overview & Aesthetic Philosophy
-
-Northstar is an internal-grade **investment portfolio analytics application** designed for investment professionals to evaluate portfolio holdings, market valuations, asset allocations, and period performance metrics with uncompromising speed and visual discipline.
-
-### Design System: Terminal Meets High Wealth Management
-- **Ink Black Canvas (`#0A0A0A`)**: Full-bleed dark mode canvas with single-surface step elevation (`#141414`).
-- **Single Chromatic Accent (`#D4FF3F`)**: Acid green highlight used exclusively for active tenant dots, positive return indicators, focused input underlines, and primary actions.
-- **Dual Typography Engine**:
-  - **Instrument Serif** (Display, 140–180px): Renders portfolio valuation like a physical ledger entry.
-  - **JetBrains Mono** (Technical): Tabular numbers and engineering telemetry across all labels, tables, and readouts.
-- **Hairline Geometry (`#1A1A1A`)**: Crisp 0.5px / 1px dividers, zero border-radius, four-corner targeting ticks (`┌ ┐ └ ┘`) on interactive panels.
-- **Mechanical Odometer Motion**: Split-flap digit rotation on value updates over 400ms.
+Institutional-Grade Multi-Tenant Investment Portfolio Analytics Platform  
+Cold on the surface, precise underneath, lit by a single acid accent.
 
 ---
 
-## 🏗️ System Architecture
+## Visual Interface Overview
+
+### 1. Operator Login & Authentication
+![Login Interface](frontend/assets/image.png)
+
+### 2. Validation Error Handling (Dirty CSV Row Rejection)
+![Dirty CSV Validation Error](frontend/assets/image1.png)
+
+### 3. Valid Portfolio Holdings Telemetry
+![Valid Portfolio Holdings Telemetry](frontend/assets/image2.png)
+
+### 4. Asset Allocation Breakdown & Analytics
+![Asset Allocation Breakdown](frontend/assets/image3.png)
+
+---
+
+## Architectural Topology
 
 ```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        Nginx / Vite Web Client                         │
-│                    (React 18 + TS + Tailwind CSS)                      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                         HTTP / JSON (Bearer JWT)
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                         Express Node.js API                            │
-│                                                                        │
-│  • JWT Auth & RLS Claims Decoders    • CSV Validation Pipeline         │
-│  • Atomic PostgreSQL Transactions    • Portfolio Valuation Engine      │
-└───────────────────────────────────┬────────────────────────────────────┘
-                                    │
-                       SQL (Parameterized Queries)
-                                    │
-                                    ▼
-┌────────────────────────────────────────────────────────────────────────┐
-│                      PostgreSQL 16 Alpine Database                     │
-│                        (Docker Containerized)                          │
-└────────────────────────────────────────────────────────────────────────┘
++--------------------------------------------------------------------+
+|                      Nginx / Vite Web Client                       |
+|                  (React 18 + TS + Tailwind CSS)                    |
++--------------------------------─┬----------------------------------+
+                                  |
+                       HTTP / JSON (Bearer JWT)
+                                  |
+                                  v
++--------------------------------------------------------------------+
+|                       Express Node.js API                          |
+|                                                                    |
+|  * JWT Auth & RLS Claims Decoders    * CSV Validation Pipeline     |
+|  * Atomic PostgreSQL Transactions    * Portfolio Valuation Engine  |
++--------------------------------─┬----------------------------------+
+                                  |
+                     SQL (Parameterized Queries)
+                                  |
+                                  v
++--------------------------------------------------------------------+
+|                    PostgreSQL 16 Alpine Database                   |
+|                      (Docker Containerized)                        |
++--------------------------------------------------------------------+
 ```
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
-- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Recharts
-- **Backend**: Node.js, Express, PostgreSQL (`pg`), JWT (`jsonwebtoken`), bcryptjs, Multer, `csv-parse`
-- **Infrastructure & Containerization**: PostgreSQL 16 Alpine, Nginx, Docker, Docker Compose
+- Frontend: React 18, TypeScript, Vite, Tailwind CSS v4, Framer Motion, Recharts
+- Backend: Node.js, Express, PostgreSQL (`pg`), JWT (`jsonwebtoken`), bcryptjs, Multer, `csv-parse`
+- Database & Containerization: PostgreSQL 16 Alpine, Nginx, Docker, Docker Compose
 
 ---
 
-## 🔑 Demo Access & Seed Credentials
+## Seed Credentials & Tenant Access
 
-The application initializes with two isolated tenant organizations for multi-tenant verification:
+The database is pre-populated with two isolated tenant organizations for multi-tenant verification:
 
-| Tenant | Access Email | Password | Tenant Name | Pre-loaded Data | Keyboard Hotkey |
+| Tenant | Access Email | Password | Tenant Name | Initial Dataset | Keyboard Shortcut |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tenant 1** | `tenant_a@example.com` | `Password123!` | Alpha Capital | Sample Holdings | `⌘1` / `Ctrl+1` |
-| **Tenant 2** | `tenant_b@example.com` | `Password123!` | Beacon Advisors | Sample Holdings | `⌘2` / `Ctrl+2` |
+| Tenant 1 | `tenant_a@example.com` | `Password123!` | Alpha Capital | Pre-loaded Holdings | `Cmd+1` / `Ctrl+1` |
+| Tenant 2 | `tenant_b@example.com` | `Password123!` | Beacon Advisors | Pre-loaded Holdings | `Cmd+2` / `Ctrl+2` |
 
 ---
 
-## 🚀 Quick Start (Single Command)
+## Single-Command Setup & Execution
 
-### 1. Run via Docker Compose (Recommended)
+### Full Stack Execution (PostgreSQL + Express API + Nginx Frontend)
 
-Start the entire full-stack application (Database, API Backend, Nginx Web Client):
+To start the entire application stack (Database, API, and Frontend) in a single command, run:
 
 ```bash
 docker compose up --build
 ```
 
-Access points:
-- **Web UI**: [http://localhost](http://localhost) (or [http://localhost:5173](http://localhost:5173))
-- **Backend API**: `http://localhost:5000`
+This single command automatically starts:
+1. PostgreSQL 16 Database on `localhost:5432` with seeded schema and users.
+2. Express API Backend on `http://localhost:5000`.
+3. Nginx Web Client serving the compiled frontend on `http://localhost:80` (and `http://localhost:5173`).
+
+Open your web browser at:
+`http://localhost` or `http://localhost:5173`
 
 ---
 
-### 2. Run Local Frontend Development Server
+## Multi-Tenant Row-Level Security (RLS)
 
-If you prefer to run the Vite frontend locally:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
+1. JWT Claim Source of Truth: All backend routes extract `tenant_id` directly from the authenticated JWT token. Query parameters or request body overrides like `?tenantId=2` are strictly ignored.
+2. Parameterized SQL Execution: Database operations use positional placeholders (`WHERE tenant_id = $1`) to prevent cross-tenant data leakage and SQL injection.
+3. Verified Data Boundaries: Dataset operations (uploading or clearing holdings) for Tenant A leave Tenant B's data completely untouched.
 
 ---
 
-## 🔒 Multi-Tenant Row-Level Isolation
+## CSV Format & Validation Rules
 
-1. **JWT Claim Source of Truth**: All backend routes extract `tenant_id` directly from the authenticated JWT token payload. Query parameters or request body tenant overrides are strictly rejected.
-2. **Parameterized SQL Queries**: Every database query filters with `WHERE tenant_id = $1`.
-3. **Verified Data Boundaries**: Resetting or modifying holdings for Tenant A leaves Tenant B's dataset 100% untouched.
-
----
-
-## 📊 CSV Format & Atomic Validation Rules
-
-Holdings datasets are uploaded via CSV with mandatory schema headers:
+Holdings datasets are uploaded via CSV format with exact column headers:
 
 ```csv
 date,ticker,asset_class,quantity,price
@@ -121,15 +114,27 @@ date,ticker,asset_class,quantity,price
 2026-06-30,USD,Cash,5000,1.00
 ```
 
-### Atomic Validation Rules
-- **Schema Validation**: Required columns (`date`, `ticker`, `asset_class`, `quantity`, `price`).
-- **Data Types & Ranges**: ISO date format (`YYYY-MM-DD`), numeric `quantity > 0`, non-negative `price >= 0`.
-- **Duplicate Prevention**: In-file duplicate checking flags duplicate ticker/date entries with line-specific errors (`[ROW 04]`).
-- **Atomic Rollback**: Executed inside `BEGIN ... ROLLBACK` transaction block. Any single invalid row aborts the entire upload, preserving data integrity.
+### Period Return Formula
+The period return metric is computed across the dataset timeframe:
+
+$$\text{period\_return} = \frac{\text{end\_market\_value} - \text{start\_market\_value}}{\text{start\_market\_value}}$$
+
+- Start Market Value: Sum of `quantity * price` for all holdings on the earliest date (`MIN(holding_date)`).
+- End Market Value: Sum of `quantity * price` for all holdings on the latest date (`MAX(holding_date)`).
+
+### Validation & Atomic Transaction Rules
+- Field Presence: Required columns (`date`, `ticker`, `asset_class`, `quantity`, `price`).
+- Data Types: ISO date format (`YYYY-MM-DD`), numeric `quantity > 0`, non-negative `price >= 0`.
+- In-File Duplicate Detection: Flags duplicate entries for the same ticker and date with row-specific errors (`[ROW 04]`).
+- Atomic Rollback: Imports run inside `BEGIN ... ROLLBACK` SQL transactions. Any invalid row aborts the entire import, preventing data corruption.
+
+Files Provided:
+- `sample_good.csv`: Valid dataset producing +4.10% Period Return ($92,600 -> $96,400).
+- `sample_dirty.csv`: Contains a duplicate row to demonstrate validation error handling.
 
 ---
 
-## 📑 API Reference
+## API Specifications
 
 ### 1. Operator Authentication
 ```http
@@ -163,11 +168,20 @@ Authorization: Bearer <token>
 
 ---
 
-## 🧪 Verification & Build Status
+## Key Assumptions
 
-- **Frontend Compilation**: Built cleanly via `tsc && vite build` in 1.15s with 0 errors.
-- **Backend API & Database**: Fully verified via Docker Compose with healthchecks.
+- Full Snapshot Replacement: Each uploaded CSV replaces the tenant's active portfolio snapshot atomically.
+- Market Valuation: Valuation is calculated as `quantity * price`.
+- Date Scope: Start date equals earliest date in uploaded CSV; end date equals latest date.
 
 ---
 
-*System Version: Northstar OS v1.0.0 // All Rights Reserved*
+## Future Improvements (With More Time)
+
+- Automated End-to-End Tests: Cypress / Playwright test suite for tenant isolation and error handling.
+- Historical Snapshot Comparison: Multi-period historical tracking across custom date ranges.
+- Granular Asset Class Drilling: Drill-down modal for individual ticker performance.
+
+---
+
+NORTHSTAR OS v1.0.0 // All Rights Reserved

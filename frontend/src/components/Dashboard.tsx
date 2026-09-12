@@ -5,6 +5,7 @@ import { PortfolioChart } from './PortfolioChart';
 import { OdometerNumber } from './OdometerNumber';
 import { ConfirmModal } from './ConfirmModal';
 import { motion, AnimatePresence } from 'framer-motion';
+import flamLogo from '../../assets/Flam-AI-scaled.webp';
 
 interface DashboardProps {
   user: User;
@@ -103,7 +104,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
       {/* Top Telemetry Header (36px high, razor hairline bottom) */}
       <header className="h-[36px] border-b border-[#1a1c23] bg-[#0a0b0e] px-4 flex items-center justify-between shrink-0 text-xs tracking-widest uppercase">
         <div className="flex items-center gap-3">
-          <img src="/logo.webp" alt="Flam AI Logo" className="h-4 w-auto object-contain opacity-90" />
+          <img src={flamLogo} alt="Flam AI Logo" className="h-4 w-auto object-contain opacity-90" />
           <span className="w-1.5 h-1.5 bg-[#D4FF3F] inline-block animate-pulse" />
           <span className="font-bold text-[#F5F5F7] tracking-wider">NORTHSTAR</span>
           <span className="text-[#4A4E5D]">//</span>
