@@ -1,5 +1,5 @@
-<p align="left">
-  <img src="frontend/assets/Flam-AI-scaled.webp" width="56" alt="Northstar Portfolio Logo" />
+<p align="center">
+  <img src="frontend/assets/Flam-AI-scaled.webp" width="64" alt="Northstar Portfolio Logo" />
 </p>
 
 # Northstar Portfolio

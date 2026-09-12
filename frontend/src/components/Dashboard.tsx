@@ -501,55 +501,55 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
         </main>
 
         {/* Fixed 56px Telemetry Control Rail */}
-        <aside className="fixed bottom-0 left-0 right-0 md:left-auto md:right-0 md:top-[36px] w-full md:w-[56px] h-[48px] md:h-[calc(100vh-36px)] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex flex-row md:flex-col justify-between items-center p-3 shrink-0 text-[10px] tracking-widest uppercase z-40">
+        <aside className="fixed bottom-0 left-0 right-0 md:left-auto md:right-0 md:top-[36px] w-full md:w-[56px] h-[48px] md:h-[calc(100vh-36px)] bg-[#0a0b0e] border-t md:border-t-0 md:border-l border-[#1a1c23] flex flex-row md:flex-col justify-between items-center p-2.5 shrink-0 text-[10px] tracking-widest uppercase z-40">
           {/* Navigation Controls */}
-          <div className="flex md:flex-col gap-2 w-full">
+          <div className="flex md:flex-col gap-2 w-full items-center">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`p-2 border transition-all text-center cursor-pointer ${
+              className={`w-full h-8 flex items-center justify-center border transition-all text-center cursor-pointer font-bold text-[10px] tracking-tighter ${
                 activeTab === 'overview'
-                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F] font-bold'
+                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F]'
                   : 'border-[#1a1c23] hover:border-[#4A4E5D] text-[#8E929F]'
               }`}
               title="Overview"
             >
-              [01]
+              01
             </button>
             <button
               onClick={() => setActiveTab('holdings')}
-              className={`p-2 border transition-all text-center cursor-pointer ${
+              className={`w-full h-8 flex items-center justify-center border transition-all text-center cursor-pointer font-bold text-[10px] tracking-tighter ${
                 activeTab === 'holdings'
-                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F] font-bold'
+                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F]'
                   : 'border-[#1a1c23] hover:border-[#4A4E5D] text-[#8E929F]'
               }`}
               title="Holdings"
             >
-              [02]
+              02
             </button>
             <button
               onClick={() => setActiveTab('analytics')}
-              className={`p-2 border transition-all text-center cursor-pointer ${
+              className={`w-full h-8 flex items-center justify-center border transition-all text-center cursor-pointer font-bold text-[10px] tracking-tighter ${
                 activeTab === 'analytics'
-                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F] font-bold'
+                  ? 'border-[#D4FF3F] bg-[#111318] text-[#D4FF3F]'
                   : 'border-[#1a1c23] hover:border-[#4A4E5D] text-[#8E929F]'
               }`}
               title="Analytics"
             >
-              [03]
+              03
             </button>
           </div>
 
           {/* Bottom Actions */}
-          <div className="flex md:flex-col gap-2">
+          <div className="flex md:flex-col gap-2 w-full items-center">
             <button
               onClick={() => {
                 clearAuth();
                 onLogout();
               }}
-              className="p-2 border border-[#1a1c23] hover:border-[#FF3B30] text-[#8E929F] hover:text-[#FF3B30] transition-colors cursor-pointer text-center"
+              className="w-full h-8 flex items-center justify-center border border-[#1a1c23] hover:border-[#FF3B30] text-[#8E929F] hover:text-[#FF3B30] transition-colors cursor-pointer text-center font-bold text-[10px] tracking-tighter"
               title="Sign Out"
             >
-              [EXIT]
+              EXIT
             </button>
           </div>
         </aside>
