@@ -1,0 +1,131 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: 'Instrument Serif', Georgia, serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-ink-bg: #050505;
+  --color-ink-surface: #0a0b0e;
+  --color-ink-elevated: #111318;
+  --color-ink-border: #1a1c23;
+  --color-ink-border-bright: #2d3240;
+
+  --color-acid: #D4FF3F;
+  --color-acid-dark: #8ba818;
+  --color-acid-glow: rgba(212, 255, 63, 0.15);
+
+  --color-oxblood: #6B1E1E;
+  --color-crimson: #FF3B30;
+  --color-emerald: #34C759;
+
+  --radius-tight: 2px;
+}
+
+@layer base {
+  :root {
+    --bg-main: #050505;
+    --bg-surface: #0a0b0e;
+    --bg-elevated: #111318;
+    --border-subtle: #1a1c23;
+    --border-strong: #2d3240;
+    --accent-acid: #D4FF3F;
+    --text-primary: #F5F5F7;
+    --text-secondary: #8E929F;
+    --text-muted: #4A4E5D;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "zero";
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .font-serif-display {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+  }
+}
+
+/* Hairline 0.5px border utility */
+.border-hairline {
+  border-width: 1px;
+  border-color: #1a1c23;
+}
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .border-hairline-tight {
+    border-width: 0.5px;
+    border-color: #1a1c23;
+  }
+}
+
+/* Hatched texture background for negative returns / alert states */
+.bg-hatched-negative {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(255, 59, 48, 0.12),
+    rgba(255, 59, 48, 0.12) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.bg-hatched-positive {
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(212, 255, 63, 0.12),
+    rgba(212, 255, 63, 0.12) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.bg-dot-grid {
+  background-image: radial-gradient(rgba(212, 255, 63, 0.15) 1px, transparent 1px);
+  background-size: 12px 12px;
+}
+
+/* Scanline effect for loading/submitting */
+@keyframes scanline {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-scanline {
+  animation: scanline 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Blinking terminal caret */
+@keyframes caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-caret {
+  animation: caret-blink 0.8s step-start infinite;
+}
+
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a1c23;
+  border-radius: 0px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #D4FF3F;
+}

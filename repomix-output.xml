@@ -1,0 +1,2087 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+.env.example
+.gitignore
+backend/Dockerfile
+backend/package.json
+backend/src/config/db.js
+backend/src/middleware/auth.js
+backend/src/routes/auth.js
+backend/src/routes/dashboard.js
+backend/src/routes/holdings.js
+backend/src/server.js
+backend/src/services/csvService.js
+backend/src/services/portfolioService.js
+db/init.sql
+docker-compose.yml
+frontend/Dockerfile
+frontend/index.html
+frontend/nginx.conf
+frontend/package.json
+frontend/src/App.tsx
+frontend/src/components/Dashboard.tsx
+frontend/src/components/Login.tsx
+frontend/src/components/PortfolioChart.tsx
+frontend/src/components/UploadCSV.tsx
+frontend/src/index.css
+frontend/src/main.tsx
+frontend/src/services/api.ts
+frontend/tsconfig.json
+frontend/vite.config.ts
+README.md
+sample_dirty.csv
+sample_good.csv
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path=".env.example">
+PORT=5000
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=northstar
+DB_USER=postgres
+DB_PASSWORD=postgrespassword
+JWT_SECRET=dev_northstar_jwt_secret_key_2026
+</file>
+
+<file path=".gitignore">
+node_modules/
+dist/
+build/
+.env
+*.log
+.DS_Store
+</file>
+
+<file path="backend/Dockerfile">
+FROM node:20-alpine
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install --omit=dev
+
+COPY . .
+
+EXPOSE 5000
+
+CMD ["node", "src/server.js"]
+</file>
+
+<file path="backend/package.json">
+{
+  "name": "northstar-backend",
+  "version": "1.0.0",
+  "description": "Northstar Portfolio Backend API",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parse": "^5.5.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
+</file>
+
+<file path="backend/src/config/db.js">
+const { Pool } = require('pg');
+require('dotenv').config();
+
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'northstar',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgrespassword',
+});
+
+pool.on('error', (err) => {
+  console.error('Unexpected database client error:', err);
+});
+
+module.exports = pool;
+</file>
+
+<file path="backend/src/middleware/auth.js">
+const jwt = require('jsonwebtoken');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_northstar_jwt_secret_key_2026';
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication token required' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (!decoded || !decoded.tenantId || !decoded.userId) {
+      return res.status(401).json({ error: 'Invalid token payload' });
+    }
+    req.user = {
+      userId: decoded.userId,
+      tenantId: decoded.tenantId,
+      email: decoded.email,
+      tenantName: decoded.tenantName
+    };
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+module.exports = authenticateToken;
+</file>
+
+<file path="backend/src/routes/auth.js">
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const pool = require('../config/db');
+
+const router = express.Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_northstar_jwt_secret_key_2026';
+
+router.post('/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const queryText = `
+      SELECT u.id, u.email, u.password_hash, u.tenant_id, t.name AS tenant_name
+      FROM users u
+      JOIN tenants t ON u.tenant_id = t.id
+      WHERE u.email = $1
+    `;
+    const result = await pool.query(queryText, [email.trim().toLowerCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const user = result.rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const tokenPayload = {
+      userId: user.id,
+      tenantId: user.tenant_id,
+      email: user.email,
+      tenantName: user.tenant_name
+    };
+
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        tenantId: user.tenant_id,
+        tenantName: user.tenant_name
+      }
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    return res.status(500).json({ error: 'Internal server error during login' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/src/routes/dashboard.js">
+const express = require('express');
+const authenticateToken = require('../middleware/auth');
+const { getPortfolioDashboardData } = require('../services/portfolioService');
+
+const router = express.Router();
+
+router.get('/', authenticateToken, async (req, res) => {
+  try {
+    // Tenant ID strictly derived from JWT claims
+    const tenantId = req.user.tenantId;
+
+    const data = await getPortfolioDashboardData(tenantId);
+
+    return res.json({
+      tenantId: req.user.tenantId,
+      tenantName: req.user.tenantName,
+      userEmail: req.user.email,
+      ...data
+    });
+  } catch (err) {
+    console.error('Error fetching dashboard data:', err);
+    return res.status(500).json({ error: 'Failed to compute dashboard metrics' });
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/src/routes/holdings.js">
+const express = require('express');
+const multer = require('multer');
+const pool = require('../config/db');
+const authenticateToken = require('../middleware/auth');
+const { parseAndValidateCSV } = require('../services/csvService');
+
+const router = express.Router();
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+});
+
+router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'No CSV file uploaded' });
+  }
+
+  // Tenant ID strictly derived from JWT claims
+  const tenantId = req.user.tenantId;
+
+  // Validate CSV
+  const validationResult = parseAndValidateCSV(req.file.buffer);
+
+  if (!validationResult.valid) {
+    return res.status(400).json({
+      error: 'CSV validation failed',
+      errors: validationResult.errors
+    });
+  }
+
+  const rows = validationResult.rows;
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Clear existing holdings for this tenant (atomic replacement)
+    await client.query('DELETE FROM holdings WHERE tenant_id = $1', [tenantId]);
+
+    // Insert new valid holdings
+    const insertQuery = `
+      INSERT INTO holdings (tenant_id, holding_date, ticker, asset_class, quantity, price)
+      VALUES ($1, $2, $3, $4, $5, $6)
+    `;
+
+    for (const row of rows) {
+      await client.query(insertQuery, [
+        tenantId,
+        row.date,
+        row.ticker,
+        row.assetClass,
+        row.quantity,
+        row.price
+      ]);
+    }
+
+    await client.query('COMMIT');
+
+    return res.json({
+      message: 'Holdings uploaded successfully',
+      rowsImported: rows.length
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error importing holdings CSV:', err);
+    return res.status(500).json({
+      error: 'Failed to import holdings into database',
+      message: err.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
+module.exports = router;
+</file>
+
+<file path="backend/src/server.js">
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
+const authRoutes = require('./routes/auth');
+const holdingsRoutes = require('./routes/holdings');
+const dashboardRoutes = require('./routes/dashboard');
+
+const app = express();
+const PORT = process.env.PORT || 5000;
+
+// Enable CORS and JSON parsing
+app.use(cors());
+app.use(express.json());
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/holdings', holdingsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled server error:', err);
+  res.status(500).json({ error: 'Internal server error', message: err.message });
+});
+
+app.listen(PORT, () => {
+  console.log(`Northstar Portfolio API listening on port ${PORT}`);
+});
+</file>
+
+<file path="backend/src/services/csvService.js">
+const { parse } = require('csv-parse/sync');
+
+function parseAndValidateCSV(fileBuffer) {
+  const errors = [];
+
+  let rawRecords;
+  try {
+    rawRecords = parse(fileBuffer, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+    });
+  } catch (err) {
+    return {
+      valid: false,
+      errors: [{ row: 1, message: `CSV syntax error: ${err.message}` }],
+    };
+  }
+
+  if (!rawRecords || rawRecords.length === 0) {
+    return {
+      valid: false,
+      errors: [{ row: 1, message: 'CSV file is empty or missing headers' }],
+    };
+  }
+
+  // Verify headers
+  const sampleRecord = rawRecords[0];
+  const keys = Object.keys(sampleRecord).map((k) => k.toLowerCase().trim().replace(/[\s_]+/g, '_'));
+  const requiredHeaders = ['date', 'ticker', 'asset_class', 'quantity', 'price'];
+
+  for (const reqHeader of requiredHeaders) {
+    if (!keys.includes(reqHeader)) {
+      return {
+        valid: false,
+        errors: [{ row: 1, message: `Missing required column header: '${reqHeader}'` }],
+      };
+    }
+  }
+
+  const validatedRows = [];
+  const seenKeys = new Set();
+
+  rawRecords.forEach((record, index) => {
+    const rowNumber = index + 2; // Accounting for 1-based index and header row
+    const initialErrorCount = errors.length;
+
+    // Extract fields matching case-insensitive headers
+    const rawDate = getFieldValue(record, 'date');
+    const rawTicker = getFieldValue(record, 'ticker');
+    const rawAssetClass = getFieldValue(record, 'asset_class');
+    const rawQuantity = getFieldValue(record, 'quantity');
+    const rawPrice = getFieldValue(record, 'price');
+
+    // 1. Check missing fields
+    if (!rawDate) {
+      errors.push({ row: rowNumber, message: 'Missing date' });
+    }
+    if (!rawTicker) {
+      errors.push({ row: rowNumber, message: 'Missing ticker' });
+    }
+    if (!rawAssetClass) {
+      errors.push({ row: rowNumber, message: 'Missing asset_class' });
+    }
+
+    // 2. Timezone-safe UTC Date Validation
+    let formattedDate = null;
+    if (rawDate) {
+      const match = rawDate.match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
+      if (match) {
+        const y = parseInt(match[1], 10);
+        const m = parseInt(match[2], 10);
+        const d = parseInt(match[3], 10);
+        const dateObj = new Date(Date.UTC(y, m - 1, d));
+        if (
+          dateObj.getUTCFullYear() === y &&
+          dateObj.getUTCMonth() + 1 === m &&
+          dateObj.getUTCDate() === d
+        ) {
+          formattedDate = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+      } else {
+        const parsedDate = new Date(rawDate);
+        if (!isNaN(parsedDate.getTime())) {
+          const y = parsedDate.getUTCFullYear();
+          const m = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(parsedDate.getUTCDate()).padStart(2, '0');
+          formattedDate = `${y}-${m}-${d}`;
+        }
+      }
+
+      if (!formattedDate) {
+        errors.push({ row: rowNumber, message: `Invalid date format '${rawDate}'` });
+      }
+    }
+
+    // 3. Validate Quantity
+    const quantity = parseFloat(rawQuantity);
+    if (isNaN(quantity) || !isFinite(quantity) || quantity <= 0) {
+      errors.push({ row: rowNumber, message: `Invalid quantity '${rawQuantity}'. Must be a positive number.` });
+    }
+
+    // 4. Validate Price
+    const price = parseFloat(rawPrice);
+    if (isNaN(price) || !isFinite(price) || price < 0) {
+      errors.push({ row: rowNumber, message: `Invalid price '${rawPrice}'. Must be a non-negative number.` });
+    }
+
+    // 5. Duplicate Check within CSV
+    if (formattedDate && rawTicker && rawAssetClass && !isNaN(quantity) && !isNaN(price)) {
+      const compositeKey = `${formattedDate}|${rawTicker.toUpperCase()}|${rawAssetClass.toUpperCase()}|${quantity}|${price}`;
+      if (seenKeys.has(compositeKey)) {
+        errors.push({
+          row: rowNumber,
+          message: `Duplicate row detected for ticker '${rawTicker}' on date '${formattedDate}'`
+        });
+      } else {
+        seenKeys.add(compositeKey);
+      }
+    }
+
+    // Only collect row if ZERO errors occurred for this row
+    if (errors.length === initialErrorCount && formattedDate) {
+      validatedRows.push({
+        date: formattedDate,
+        ticker: rawTicker.toUpperCase().trim(),
+        assetClass: capitalizeWords(rawAssetClass.trim()),
+        quantity,
+        price,
+      });
+    }
+  });
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  return { valid: true, rows: validatedRows };
+}
+
+function getFieldValue(record, targetKey) {
+  for (const key of Object.keys(record)) {
+    const normalizedKey = key.toLowerCase().trim().replace(/[\s_]+/g, '_');
+    if (normalizedKey === targetKey) {
+      return record[key] !== undefined && record[key] !== null ? String(record[key]).trim() : '';
+    }
+  }
+  return '';
+}
+
+function capitalizeWords(str) {
+  return str.replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+module.exports = {
+  parseAndValidateCSV,
+};
+</file>
+
+<file path="backend/src/services/portfolioService.js">
+const pool = require('../config/db');
+
+async function getPortfolioDashboardData(tenantId) {
+  // 1. Get earliest and latest holding dates for tenant
+  const datesResult = await pool.query(
+    `SELECT MIN(holding_date)::text AS min_date, MAX(holding_date)::text AS max_date 
+     FROM holdings 
+     WHERE tenant_id = $1`,
+    [tenantId]
+  );
+
+  const minDate = datesResult.rows[0]?.min_date;
+  const maxDate = datesResult.rows[0]?.max_date;
+
+  if (!minDate || !maxDate) {
+    return {
+      hasData: false,
+      startDate: null,
+      endDate: null,
+      startMarketValue: 0,
+      endMarketValue: 0,
+      periodReturn: 0,
+      assetClasses: []
+    };
+  }
+
+  // 2. Start Market Value
+  const startValResult = await pool.query(
+    `SELECT COALESCE(SUM(quantity * price), 0) AS total_val 
+     FROM holdings 
+     WHERE tenant_id = $1 AND holding_date = $2`,
+    [tenantId, minDate]
+  );
+  const startMarketValue = parseFloat(startValResult.rows[0].total_val);
+
+  // 3. End Market Value
+  const endValResult = await pool.query(
+    `SELECT COALESCE(SUM(quantity * price), 0) AS total_val 
+     FROM holdings 
+     WHERE tenant_id = $1 AND holding_date = $2`,
+    [tenantId, maxDate]
+  );
+  const endMarketValue = parseFloat(endValResult.rows[0].total_val);
+
+  // 4. Period Return
+  let periodReturn = 0;
+  if (startMarketValue > 0) {
+    periodReturn = (endMarketValue - startMarketValue) / startMarketValue;
+  }
+
+  // 5. Asset Class Breakdown at Latest Date
+  const assetClassesResult = await pool.query(
+    `SELECT asset_class AS "assetClass", 
+            ROUND(SUM(quantity * price)::numeric, 2) AS "marketValue"
+     FROM holdings 
+     WHERE tenant_id = $1 AND holding_date = $2
+     GROUP BY asset_class 
+     ORDER BY "marketValue" DESC`,
+    [tenantId, maxDate]
+  );
+
+  const assetClasses = assetClassesResult.rows.map((row) => ({
+    assetClass: row.assetClass,
+    marketValue: parseFloat(row.marketValue)
+  }));
+
+  return {
+    hasData: true,
+    startDate: minDate,
+    endDate: maxDate,
+    startMarketValue: Math.round(startMarketValue * 100) / 100,
+    endMarketValue: Math.round(endMarketValue * 100) / 100,
+    periodReturn: Math.round(periodReturn * 10000) / 10000, // e.g. 0.0410
+    assetClasses
+  };
+}
+
+module.exports = {
+  getPortfolioDashboardData
+};
+</file>
+
+<file path="db/init.sql">
+-- Database schema and seed data for Northstar Portfolio
+
+CREATE TABLE IF NOT EXISTS tenants (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS holdings (
+    id SERIAL PRIMARY KEY,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    holding_date DATE NOT NULL,
+    ticker VARCHAR(50) NOT NULL,
+    asset_class VARCHAR(100) NOT NULL,
+    quantity NUMERIC NOT NULL,
+    price NUMERIC NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_holdings_tenant_date
+ON holdings(tenant_id, holding_date);
+
+-- Seed tenants
+INSERT INTO tenants (id, name)
+VALUES
+    (1, 'Alpha Capital'),
+    (2, 'Beacon Advisors')
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
+
+-- Seed users (password for both is Password123!)
+INSERT INTO users (email, password_hash, tenant_id)
+VALUES
+    ('tenant_a@example.com', '$2a$10$5Xunez.Hr35NyqwOI1taFeguAoEhudMao6vz27MBguzjqIEBQWNXS', 1),
+    ('tenant_b@example.com', '$2a$10$5Xunez.Hr35NyqwOI1taFeguAoEhudMao6vz27MBguzjqIEBQWNXS', 2)
+ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, tenant_id = EXCLUDED.tenant_id;
+
+-- Reset tenant sequence past manually inserted IDs
+SELECT setval('tenants_id_seq', (SELECT MAX(id) FROM tenants));
+</file>
+
+<file path="docker-compose.yml">
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: northstar-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: northstar
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d northstar"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: ./backend
+    container_name: northstar-api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      PORT: 5000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: northstar
+      DB_USER: postgres
+      DB_PASSWORD: postgrespassword
+      JWT_SECRET: dev_northstar_jwt_secret_key_2026
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: northstar-frontend
+    restart: always
+    ports:
+      - "80:80"
+      - "5173:80"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+</file>
+
+<file path="frontend/Dockerfile">
+# Stage 1: Build React static assets with Vite
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+COPY package*.json ./
+
+RUN npm install
+
+COPY . .
+
+RUN npm run build
+
+# Stage 2: Serve built assets using Nginx
+FROM nginx:alpine
+
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
+</file>
+
+<file path="frontend/index.html">
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Northstar Portfolio Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-slate-950 text-slate-100 font-sans antialiased min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+</file>
+
+<file path="frontend/nginx.conf">
+server {
+    listen 80;
+    server_name localhost;
+
+    location / {
+        root /usr/share/nginx/html;
+        index index.html index.htm;
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://api:5000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+</file>
+
+<file path="frontend/package.json">
+{
+  "name": "northstar-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.439.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.3",
+    "vite": "^5.4.1"
+  }
+}
+</file>
+
+<file path="frontend/src/App.tsx">
+import { useState } from 'react';
+import { Login } from './components/Login';
+import { Dashboard } from './components/Dashboard';
+import { getCurrentUser, getAuthToken, User } from './services/api';
+
+export function App() {
+  const [user, setUser] = useState<User | null>(() => {
+    const token = getAuthToken();
+    const currentUser = getCurrentUser();
+    return token && currentUser ? currentUser : null;
+  });
+
+  const handleLoginSuccess = (loggedInUser: User) => {
+    setUser(loggedInUser);
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+  };
+
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
+  return <Dashboard user={user} onLogout={handleLogout} />;
+}
+
+export default App;
+</file>
+
+<file path="frontend/src/components/Dashboard.tsx">
+import React, { useEffect, useState, useCallback } from 'react';
+import { fetchDashboardApi, DashboardResponse, clearAuth, User } from '../services/api';
+import { UploadCSV } from './UploadCSV';
+import { PortfolioChart } from './PortfolioChart';
+import {
+  LogOut,
+  RefreshCw,
+  FolderPlus,
+  LayoutDashboard,
+  Table as TableIcon,
+  BarChart3,
+  Sliders,
+  ArrowUpRight,
+  ArrowDownRight
+} from 'lucide-react';
+
+interface DashboardProps {
+  user: User;
+  onLogout: () => void;
+}
+
+export const Dashboard: React.FC<DashboardProps> = ({ user, onLogout }) => {
+  const [data, setData] = useState<DashboardResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'holdings' | 'analytics'>('overview');
+  const [tickerSearch, setTickerSearch] = useState<string>('');
+
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchDashboardApi();
+      setData(res);
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; status?: number };
+      if (errorObj.status === 401) {
+        clearAuth();
+        onLogout();
+        return;
+      }
+      setError(errorObj.message || 'Failed to fetch portfolio metrics');
+    } finally {
+      setLoading(false);
+    }
+  }, [onLogout]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard]);
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+
+  const formatPercent = (val: number) => {
+    const pct = val * 100;
+    const sign = pct > 0 ? '+' : '';
+    return `${sign}${pct.toFixed(2)}%`;
+  };
+
+  const formatDateDisplay = (dateStr: string | null) => {
+    if (!dateStr) return 'N/A';
+    const parsed = new Date(dateStr);
+    if (isNaN(parsed.getTime())) return dateStr;
+    return parsed.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0b0d10] text-slate-100 flex selection:bg-amber-500/30">
+      {/* 1. Slim Understated Sidebar */}
+      <aside className="w-60 bg-[#12161f] border-r border-[#212836] flex flex-col justify-between shrink-0 hidden md:flex">
+        <div className="p-5 space-y-6">
+          {/* Brand Header */}
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded bg-[#181e2b] border border-[#212836] text-amber-500 flex items-center justify-center font-mono font-bold text-sm">
+              ✦
+            </div>
+            <div>
+              <h1 className="text-sm font-bold tracking-widest font-mono text-slate-100 uppercase leading-none">
+                NORTHSTAR
+              </h1>
+              <span className="text-[10px] font-mono text-slate-500 tracking-wider">
+                Portfolio Intelligence
+              </span>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="space-y-1 font-mono text-xs">
+            <button
+              onClick={() => setActiveTab('overview')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                activeTab === 'overview'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#181e2b]'
+              }`}
+            >
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              Overview
+            </button>
+            <button
+              onClick={() => setActiveTab('holdings')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                activeTab === 'holdings'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#181e2b]'
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              Holdings
+            </button>
+            <button
+              onClick={() => setActiveTab('analytics')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors cursor-pointer ${
+                activeTab === 'analytics'
+                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-[#181e2b]'
+              }`}
+            >
+              <BarChart3 className="w-3.5 h-3.5" />
+              Analytics
+            </button>
+          </nav>
+        </div>
+
+        {/* Sidebar Footer */}
+        <div className="p-4 border-t border-[#212836] space-y-3 font-mono text-xs">
+          <div className="px-2">
+            <div className="text-[11px] font-semibold text-slate-200 truncate">{user.email}</div>
+            <div className="text-[10px] text-slate-500 truncate">{data?.tenantName || user.tenantName}</div>
+          </div>
+
+          <div className="space-y-1">
+            <button
+              onClick={() => alert('Settings configuration view')}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-slate-400 hover:text-slate-200 text-[11px] rounded transition-colors cursor-pointer"
+            >
+              <Sliders className="w-3 h-3" /> System Settings
+            </button>
+
+            <button
+              onClick={() => {
+                clearAuth();
+                onLogout();
+              }}
+              className="w-full flex items-center gap-2 px-2 py-1.5 text-rose-400/90 hover:text-rose-300 text-[11px] rounded hover:bg-rose-950/20 transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3 h-3" /> Sign Out
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* 2. Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Quiet Functional Top Bar */}
+        <header className="h-14 border-b border-[#212836] bg-[#12161f] px-6 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3 font-mono text-xs">
+            <span className="text-slate-500">Northstar</span>
+            <span className="text-slate-700">/</span>
+            <span className="font-semibold text-slate-200">{data?.tenantName || user.tenantName}</span>
+            <span className="px-1.5 py-0.5 rounded bg-emerald-950/60 border border-emerald-800/40 text-emerald-400 text-[10px] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Active Tenant
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 font-mono text-xs">
+            <button
+              onClick={loadDashboard}
+              disabled={loading}
+              className="p-1.5 rounded bg-[#181e2b] hover:bg-[#212836] border border-[#212836] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer disabled:opacity-50"
+              title="Refresh Portfolio Data"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
+            <button
+              onClick={() => {
+                clearAuth();
+                onLogout();
+              }}
+              className="md:hidden p-1.5 rounded bg-[#181e2b] text-slate-400 hover:text-rose-400 border border-[#212836] transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </header>
+
+        {/* Main Dashboard Body */}
+        <main className="p-6 md:p-8 space-y-8 flex-1 overflow-y-auto max-w-6xl w-full mx-auto">
+          {/* Skeleton Loading State */}
+          {loading && !data && (
+            <div className="space-y-6">
+              <div className="h-32 bg-[#12161f] border border-[#212836] rounded-xl animate-pulse p-6 space-y-4">
+                <div className="h-3 w-32 bg-[#212836] rounded" />
+                <div className="h-8 w-48 bg-[#212836] rounded" />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="h-64 bg-[#12161f] border border-[#212836] rounded-xl animate-pulse" />
+                <div className="h-64 bg-[#12161f] border border-[#212836] rounded-xl animate-pulse" />
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-4 rounded-xl bg-rose-950/30 border border-rose-900/40 text-rose-300 text-xs font-mono">
+              {error}
+            </div>
+          )}
+
+          {data && (
+            <>
+              {/* 3. Hero / Portfolio Summary */}
+              <div className="bg-[#12161f] border border-[#212836] rounded-xl p-6 shadow-sm space-y-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#212836] pb-5">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">
+                      PORTFOLIO OVERVIEW &bull; {data.tenantName}
+                    </span>
+                    <div className="flex items-baseline gap-4">
+                      <span className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-100 font-mono tabular-nums">
+                        {formatCurrency(data.endMarketValue)}
+                      </span>
+
+                      {/* Performance Metric Badge */}
+                      <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-mono font-bold border ${
+                        data.periodReturn >= 0
+                          ? 'bg-emerald-950/50 border-emerald-800/40 text-emerald-400'
+                          : 'bg-rose-950/50 border-rose-800/40 text-rose-400'
+                      }`}>
+                        {data.periodReturn >= 0 ? (
+                          <ArrowUpRight className="w-3.5 h-3.5" />
+                        ) : (
+                          <ArrowDownRight className="w-3.5 h-3.5" />
+                        )}
+                        <span>{formatPercent(data.periodReturn)}</span>
+                        <span className="text-[10px] text-slate-500 ml-1 font-normal uppercase">Period Return</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-left md:text-right font-mono text-xs text-slate-400 space-y-1">
+                    <div>Valuation Period:</div>
+                    <div className="font-semibold text-slate-200">
+                      {formatDateDisplay(data.startDate)} &mdash; {formatDateDisplay(data.endDate)}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sub-Metrics: Start & End Value */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 font-mono text-xs">
+                  <div className="p-3.5 bg-[#0b0d10] border border-[#212836] rounded-lg">
+                    <span className="text-[10px] text-slate-500 uppercase">Start Value</span>
+                    <div className="text-base font-bold text-slate-200 mt-1 tabular-nums">
+                      {formatCurrency(data.startMarketValue)}
+                    </div>
+                    <span className="text-[10px] text-slate-600">{formatDateDisplay(data.startDate)}</span>
+                  </div>
+
+                  <div className="p-3.5 bg-[#0b0d10] border border-[#212836] rounded-lg">
+                    <span className="text-[10px] text-slate-500 uppercase">End Value</span>
+                    <div className="text-base font-bold text-slate-200 mt-1 tabular-nums">
+                      {formatCurrency(data.endMarketValue)}
+                    </div>
+                    <span className="text-[10px] text-slate-600">{formatDateDisplay(data.endDate)}</span>
+                  </div>
+
+                  <div className="p-3.5 bg-[#0b0d10] border border-[#212836] rounded-lg">
+                    <span className="text-[10px] text-slate-500 uppercase">Asset Classes</span>
+                    <div className="text-base font-bold text-amber-500 mt-1 tabular-nums">
+                      {data.assetClasses.length}
+                    </div>
+                    <span className="text-[10px] text-slate-600">Active allocations</span>
+                  </div>
+
+                  <div className="p-3.5 bg-[#0b0d10] border border-[#212836] rounded-lg">
+                    <span className="text-[10px] text-slate-500 uppercase">Status</span>
+                    <div className="text-base font-bold text-emerald-400 mt-1">
+                      {data.hasData ? 'Verified' : 'Empty'}
+                    </div>
+                    <span className="text-[10px] text-slate-600">Audit status</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Empty State UX */}
+              {!data.hasData ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                  <div className="md:col-span-2 bg-[#12161f] border border-[#212836] rounded-xl p-10 text-center space-y-3 font-mono">
+                    <div className="w-10 h-10 rounded-lg bg-[#181e2b] border border-[#212836] text-amber-500 mx-auto flex items-center justify-center text-lg">
+                      ✦
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-200 uppercase tracking-wider">
+                        NO PORTFOLIO DATA
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                        This tenant portfolio doesn't have any holdings datasets uploaded yet. Import a valid CSV to compute analytics.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <UploadCSV onUploadSuccess={loadDashboard} />
+                  </div>
+                </div>
+              ) : (
+                /* 5. Main Operational Grid */
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+                  {/* Left 2 Columns: Table & Asset Allocation */}
+                  <div className="lg:col-span-2 space-y-6">
+                    {/* Asset Allocation Panel */}
+                    <div className="bg-[#12161f] border border-[#212836] rounded-xl p-5 shadow-sm space-y-4 font-mono">
+                      <div className="flex items-center justify-between border-b border-[#212836] pb-3">
+                        <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                          <BarChart3 className="w-3.5 h-3.5 text-amber-500" /> Asset Allocation Breakdown
+                        </h3>
+                        <span className="text-[10px] text-slate-500">As of {formatDateDisplay(data.endDate)}</span>
+                      </div>
+
+                      <PortfolioChart data={data.assetClasses} totalMarketValue={data.endMarketValue} />
+                    </div>
+
+                    {/* Operational Holdings Table */}
+                    <div className="bg-[#12161f] border border-[#212836] rounded-xl p-5 shadow-sm space-y-4 font-mono">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#212836] pb-3">
+                        <h3 className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                          <TableIcon className="w-3.5 h-3.5 text-amber-500" /> Holdings Summary
+                        </h3>
+
+                        <input
+                          type="text"
+                          value={tickerSearch}
+                          onChange={(e) => setTickerSearch(e.target.value)}
+                          placeholder="Filter asset class..."
+                          className="px-2.5 py-1 bg-[#0b0d10] border border-[#212836] focus:border-amber-500/60 rounded text-[11px] text-slate-200 placeholder-slate-600 focus:outline-none"
+                        />
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-[#0b0d10] uppercase font-semibold text-slate-400 text-[10px] border-b border-[#212836] tracking-wider">
+                            <tr>
+                              <th className="py-2.5 px-3">Asset Class</th>
+                              <th className="py-2.5 px-3 text-right">Market Value</th>
+                              <th className="py-2.5 px-3 text-right">Allocation</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#212836]">
+                            {data.assetClasses
+                              .filter((item) => item.assetClass.toLowerCase().includes(tickerSearch.toLowerCase()))
+                              .map((item, idx) => {
+                                const percentage = data.endMarketValue > 0 ? (item.marketValue / data.endMarketValue) * 100 : 0;
+                                return (
+                                  <tr key={idx} className="hover:bg-[#181e2b] transition-colors">
+                                    <td className="py-3 px-3 font-semibold text-slate-100 flex items-center gap-2">
+                                      <span
+                                        className="w-2 h-2 rounded-xs inline-block"
+                                        style={{
+                                          backgroundColor:
+                                            item.assetClass === 'Equity'
+                                              ? '#d97706'
+                                              : item.assetClass === 'Bond'
+                                              ? '#0ea5e9'
+                                              : '#64748b'
+                                        }}
+                                      />
+                                      {item.assetClass}
+                                    </td>
+                                    <td className="py-3 px-3 text-right font-medium text-slate-200 tabular-nums">
+                                      {formatCurrency(item.marketValue)}
+                                    </td>
+                                    <td className="py-3 px-3 text-right text-slate-400 tabular-nums">
+                                      {percentage.toFixed(1)}%
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </tbody>
+                          <tfoot className="bg-[#0b0d10] font-bold border-t border-[#212836] text-slate-200">
+                            <tr>
+                              <td className="py-3 px-3">Total Portfolio</td>
+                              <td className="py-3 px-3 text-right text-amber-500 tabular-nums">
+                                {formatCurrency(data.endMarketValue)}
+                              </td>
+                              <td className="py-3 px-3 text-right text-slate-400 tabular-nums">100.0%</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Compact CSV Importer Panel */}
+                  <div className="lg:col-span-1">
+                    <UploadCSV onUploadSuccess={loadDashboard} />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+};
+</file>
+
+<file path="frontend/src/components/Login.tsx">
+import React, { useState } from 'react';
+import { loginApi, User } from '../services/api';
+import { ArrowRight, AlertCircle, Building2 } from 'lucide-react';
+
+interface LoginProps {
+  onLoginSuccess: (user: User) => void;
+}
+
+export const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError('Email and password are required');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const res = await loginApi(email, password);
+      onLoginSuccess(res.user);
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string };
+      setError(errorObj.message || 'Authentication failed. Please check credentials.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickFill = (testEmail: string) => {
+    setEmail(testEmail);
+    setPassword('Password123!');
+    setError(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#0b0d10] text-slate-100 flex flex-col justify-center items-center px-4 relative selection:bg-amber-500/30">
+      <div className="w-full max-w-sm space-y-8">
+        {/* Brand Identity */}
+        <div className="text-center space-y-2">
+          <div className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-[#12161f] border border-[#212836] text-amber-500 mb-1 shadow-sm">
+            <span className="text-lg font-mono font-extrabold tracking-tighter">✦</span>
+          </div>
+          <div className="space-y-0.5">
+            <h1 className="text-xl font-bold tracking-widest uppercase text-slate-100 font-mono">
+              NORTHSTAR
+            </h1>
+            <p className="text-xs text-slate-500 uppercase tracking-widest font-mono">
+              Portfolio Intelligence
+            </p>
+          </div>
+        </div>
+
+        {/* Login Panel */}
+        <div className="bg-[#12161f] border border-[#212836] p-7 rounded-xl shadow-xl space-y-6">
+          {error && (
+            <div className="p-3.5 rounded-lg bg-rose-950/30 border border-rose-900/40 text-rose-300 text-xs flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-mono font-medium text-slate-400 uppercase tracking-wider">
+                Account Email
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="tenant_a@example.com"
+                className="w-full px-3.5 py-2.5 bg-[#0b0d10] border border-[#212836] focus:border-amber-500/60 rounded-lg text-slate-100 placeholder-slate-600 text-xs font-mono focus:outline-none transition-colors"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-mono font-medium text-slate-400 uppercase tracking-wider">
+                Password
+              </label>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                className="w-full px-3.5 py-2.5 bg-[#0b0d10] border border-[#212836] focus:border-amber-500/60 rounded-lg text-slate-100 placeholder-slate-600 text-xs font-mono focus:outline-none transition-colors"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full mt-2 py-2.5 px-4 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-slate-950 font-bold text-xs rounded-lg shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-50 uppercase tracking-wider font-mono cursor-pointer"
+            >
+              {loading ? (
+                <div className="w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin" />
+              ) : (
+                <>
+                  Authenticate <ArrowRight className="w-3.5 h-3.5" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Seeded Credentials Options */}
+          <div className="pt-5 border-t border-[#212836] space-y-2.5">
+            <div className="text-[10px] font-mono text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+              <Building2 className="w-3 h-3 text-amber-500/80" /> Seeded Access Accounts:
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => handleQuickFill('tenant_a@example.com')}
+                className="p-2.5 rounded-lg bg-[#0b0d10] hover:bg-[#181e2b] border border-[#212836] text-left transition-colors cursor-pointer group"
+              >
+                <div className="text-xs font-semibold text-slate-200 group-hover:text-amber-400 font-mono">
+                  Tenant 1
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">Alpha Capital</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleQuickFill('tenant_b@example.com')}
+                className="p-2.5 rounded-lg bg-[#0b0d10] hover:bg-[#181e2b] border border-[#212836] text-left transition-colors cursor-pointer group"
+              >
+                <div className="text-xs font-semibold text-slate-200 group-hover:text-amber-400 font-mono">
+                  Tenant 2
+                </div>
+                <div className="text-[10px] text-slate-500 truncate">Beacon Advisors</div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer info */}
+        <p className="text-center text-[11px] text-slate-600 font-mono">
+          Northstar Portfolio Analytics System &bull; Institutional Access
+        </p>
+      </div>
+    </div>
+  );
+};
+</file>
+
+<file path="frontend/src/components/PortfolioChart.tsx">
+import React from 'react';
+import { AssetClassSummary } from '../services/api';
+
+interface PortfolioChartProps {
+  data: AssetClassSummary[];
+  totalMarketValue: number;
+}
+
+const COLOR_MAP: Record<string, string> = {
+  Equity: '#d97706', // Muted Amber / Copper
+  Bond: '#0ea5e9',   // Desaturated Blue/Teal
+  Cash: '#64748b',   // Cool Slate
+};
+
+export const PortfolioChart: React.FC<PortfolioChartProps> = ({ data, totalMarketValue }) => {
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(val);
+
+  return (
+    <div className="space-y-4">
+      {/* Restrained Horizontal Allocation Bars */}
+      <div className="space-y-3.5">
+        {data.map((item, idx) => {
+          const percentage = totalMarketValue > 0 ? (item.marketValue / totalMarketValue) * 100 : 0;
+          const barColor = COLOR_MAP[item.assetClass] || '#a855f7';
+
+          return (
+            <div key={idx} className="space-y-1.5 font-mono">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-slate-200 flex items-center gap-2">
+                  <span
+                    className="w-2 h-2 rounded-sm inline-block"
+                    style={{ backgroundColor: barColor }}
+                  />
+                  {item.assetClass.toUpperCase()}
+                </span>
+                <div className="text-right">
+                  <span className="font-bold text-slate-100 mr-3 tabular-nums">{formatCurrency(item.marketValue)}</span>
+                  <span className="text-slate-500 text-[11px] tabular-nums">{percentage.toFixed(1)}%</span>
+                </div>
+              </div>
+
+              {/* Progress Bar Container */}
+              <div className="h-2 w-full bg-[#0b0d10] border border-[#212836] rounded-sm overflow-hidden p-0.5">
+                <div
+                  className="h-full rounded-xs transition-all duration-500"
+                  style={{
+                    width: `${Math.max(percentage, 1)}%`,
+                    backgroundColor: barColor,
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+</file>
+
+<file path="frontend/src/components/UploadCSV.tsx">
+import React, { useState, useRef } from 'react';
+import { uploadCSVHoldingsApi, CSVRowError } from '../services/api';
+import { Upload, FileText, CheckCircle2, AlertTriangle, X, Loader2 } from 'lucide-react';
+
+interface UploadCSVProps {
+  onUploadSuccess: () => void;
+}
+
+export const UploadCSV: React.FC<UploadCSVProps> = ({ onUploadSuccess }) => {
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [rowErrors, setRowErrors] = useState<CSVRowError[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setFile(e.target.files[0]);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+      setRowErrors([]);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      setFile(e.dataTransfer.files[0]);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+      setRowErrors([]);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+  };
+
+  const handleUpload = async () => {
+    if (!file) return;
+
+    setUploading(true);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    setRowErrors([]);
+
+    try {
+      const res = await uploadCSVHoldingsApi(file);
+      setSuccessMessage(`✓ Holdings imported (${res.rowsImported} rows processed)`);
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onUploadSuccess();
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; errors?: CSVRowError[] };
+      setErrorMessage(errorObj.message || 'Import failed due to dataset validation issues');
+      if (errorObj.errors) {
+        setRowErrors(errorObj.errors);
+      }
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="bg-[#12161f] border border-[#212836] rounded-xl p-5 shadow-sm space-y-4">
+      <div className="flex items-center justify-between border-b border-[#212836] pb-3">
+        <h3 className="text-xs font-mono font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+          <Upload className="w-3.5 h-3.5 text-amber-500" /> Import Holdings Dataset
+        </h3>
+        <span className="text-[10px] font-mono text-slate-500">Atomic Replacement</span>
+      </div>
+
+      {/* Drop Zone Area */}
+      <div
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
+        onClick={() => fileInputRef.current?.click()}
+        className="border border-dashed border-[#212836] hover:border-amber-500/50 bg-[#0b0d10] rounded-lg p-5 text-center cursor-pointer transition-colors"
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv"
+          onChange={handleFileChange}
+          className="hidden"
+        />
+
+        {file ? (
+          <div className="flex items-center justify-between gap-3 text-left">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <FileText className="w-5 h-5 text-amber-500 shrink-0" />
+              <div className="truncate">
+                <p className="text-xs font-mono font-semibold text-slate-200 truncate">{file.name}</p>
+                <p className="text-[10px] font-mono text-slate-500">{(file.size / 1024).toFixed(1)} KB &bull; Ready for validation</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFile(null);
+                if (fileInputRef.current) {
+                  fileInputRef.current.value = '';
+                }
+              }}
+              className="p-1 hover:bg-[#181e2b] rounded text-slate-500 hover:text-slate-200 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <p className="text-xs text-slate-300 font-medium">
+              Drop CSV file here or <span className="text-amber-500 underline underline-offset-2">browse computer</span>
+            </p>
+            <p className="text-[10px] font-mono text-slate-500">
+              Required: date &middot; ticker &middot; asset_class &middot; quantity &middot; price
+            </p>
+          </div>
+        )}
+      </div>
+
+      {file && (
+        <button
+          type="button"
+          onClick={handleUpload}
+          disabled={uploading}
+          className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-slate-950 font-mono font-bold text-xs rounded-lg flex items-center justify-center gap-2 transition-all disabled:opacity-50 cursor-pointer uppercase tracking-wider"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Validating & Importing...
+            </>
+          ) : (
+            'Import Holdings'
+          )}
+        </button>
+      )}
+
+      {/* Success Notification */}
+      {successMessage && (
+        <div className="p-3 rounded-lg bg-emerald-950/30 border border-emerald-800/40 text-emerald-300 text-xs flex items-center gap-2 font-mono">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
+      {/* Structured Error UX */}
+      {errorMessage && (
+        <div className="p-3.5 rounded-lg bg-rose-950/30 border border-rose-900/40 text-rose-300 text-xs space-y-2 font-mono">
+          <div className="flex items-center gap-2 font-semibold text-rose-400">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>Import failed ({rowErrors.length} issues found)</span>
+          </div>
+          {rowErrors.length > 0 && (
+            <div className="pt-2 border-t border-rose-900/40 space-y-1.5 max-h-36 overflow-y-auto">
+              {rowErrors.map((err, idx) => (
+                <div key={idx} className="text-[11px] text-rose-200/90 flex items-start gap-2">
+                  <span className="bg-rose-950 border border-rose-900 px-1 py-0.5 rounded text-rose-400 font-bold shrink-0 text-[10px]">
+                    Row {err.row}
+                  </span>
+                  <span>{err.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+</file>
+
+<file path="frontend/src/index.css">
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-main: #0b0d10;
+    --bg-surface: #12161f;
+    --bg-elevated: #181e2b;
+    --border-subtle: #212836;
+    --border-strong: #2e374a;
+    --accent-copper: #d97706;
+    --accent-copper-hover: #b45309;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+  }
+
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom scrollbar for institutional financial density */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0d10;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #212836;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #2e374a;
+}
+</file>
+
+<file path="frontend/src/main.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.tsx';
+import './index.css';
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+</file>
+
+<file path="frontend/src/services/api.ts">
+const TOKEN_KEY = 'northstar_auth_token';
+const USER_KEY = 'northstar_user_data';
+
+export interface User {
+  id: number;
+  email: string;
+  tenantId: number;
+  tenantName: string;
+}
+
+export interface AssetClassSummary {
+  assetClass: string;
+  marketValue: number;
+}
+
+export interface DashboardResponse {
+  tenantId: number;
+  tenantName: string;
+  userEmail: string;
+  hasData: boolean;
+  startDate: string | null;
+  endDate: string | null;
+  startMarketValue: number;
+  endMarketValue: number;
+  periodReturn: number;
+  assetClasses: AssetClassSummary[];
+}
+
+export interface CSVRowError {
+  row: number;
+  message: string;
+}
+
+export interface UploadResponse {
+  message: string;
+  rowsImported: number;
+}
+
+export function getAuthToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setAuthToken(token: string, user: User): void {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+export function getCurrentUser(): User | null {
+  const data = localStorage.getItem(USER_KEY);
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
+}
+
+export function clearAuth(): void {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
+
+async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
+  const token = getAuthToken();
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, { ...options, headers });
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const errorMsg = data.error || data.message || `Request failed with status ${response.status}`;
+    const err = new Error(errorMsg) as Error & { status: number; errors?: CSVRowError[] };
+    err.status = response.status;
+    if (data.errors) {
+      err.errors = data.errors;
+    }
+    throw err;
+  }
+
+  return data as T;
+}
+
+export async function loginApi(email: string, password: string): Promise<{ token: string; user: User }> {
+  const data = await request<{ token: string; user: User }>('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  setAuthToken(data.token, data.user);
+  return data;
+}
+
+export async function fetchDashboardApi(): Promise<DashboardResponse> {
+  return request<DashboardResponse>('/api/dashboard');
+}
+
+export async function uploadCSVHoldingsApi(file: File): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  return request<UploadResponse>('/api/holdings/upload', {
+    method: 'POST',
+    body: formData,
+  });
+}
+</file>
+
+<file path="frontend/tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src"]
+}
+</file>
+
+<file path="frontend/vite.config.ts">
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+  server: {
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5000',
+        changeOrigin: true,
+      },
+    },
+  },
+});
+</file>
+
+<file path="README.md">
+# Northstar Portfolio Management
+
+A secure, multi-tenant investment portfolio management and performance analytics web application built for Northstar.
+
+---
+
+## 🏗️ Architecture
+
+```text
+                    ┌──────────────────────────┐
+                    │  React 18 UI Container   │
+                    │ Nginx + Vite + Tailwind  │
+                    └────────────┬─────────────┘
+                                 │ HTTP / JSON (JWT Auth)
+                                 ▼
+                    ┌──────────────────────────┐
+                    │   Node.js + Express API  │
+                    │                          │
+                    │  • Auth & JWT Claims     │
+                    │  • CSV Parse & Validate  │
+                    │  • Portfolio Return      │
+                    │  • Tenant Isolation      │
+                    └────────────┬─────────────┘
+                                 │ SQL (Parameterized Queries)
+                                 ▼
+                    ┌──────────────────────────┐
+                    │  PostgreSQL 16 Database  │
+                    │  Docker Containerized    │
+                    └──────────────────────────┘
+```
+
+---
+
+## 🛠️ Tech Stack
+
+- **Frontend**: React 18, TypeScript, Vite, Tailwind CSS v4, Recharts, Lucide Icons, Nginx
+- **Backend**: Node.js, Express, PostgreSQL (`pg`), JWT (`jsonwebtoken`), bcryptjs, `csv-parse`, Multer
+- **Database & DevOps**: PostgreSQL 16 Alpine, Docker, Docker Compose
+
+---
+
+## 🔑 Test Login Credentials
+
+The application is pre-seeded with two tenants for testing:
+
+| Tenant | Email | Password | Tenant Name | Initial State |
+| :--- | :--- | :--- | :--- | :--- |
+| **Tenant A** | `tenant_a@example.com` | `Password123!` | Alpha Capital | Upload `sample_good.csv` |
+| **Tenant B** | `tenant_b@example.com` | `Password123!` | Beacon Advisors | Empty state |
+
+---
+
+## 🚀 Quick Start (Single Command)
+
+### Prerequisites
+
+- [Docker & Docker Compose](https://docs.docker.com/get-docker/)
+
+---
+
+### Step 1: Start Full Application Stack
+
+Run the following command from the project root:
+
+```bash
+docker compose up --build
+```
+
+This starts all three services in a single command:
+1. **PostgreSQL Database** on `localhost:5432` with seeded tables & user accounts.
+2. **Express Backend API** on `http://localhost:5000`.
+3. **Nginx Frontend Web UI** on `http://localhost:80` (and `http://localhost:5173`).
+
+Open your browser at **[http://localhost](http://localhost)** or **[http://localhost:5173](http://localhost:5173)**.
+
+---
+
+### Optional: Local Frontend Development (without Docker)
+
+If you wish to run the frontend locally with Vite HMR:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 📊 CSV Format & Validation Rules
+
+Holdings must be provided in CSV format with the following exact headers:
+
+```csv
+date,ticker,asset_class,quantity,price
+2026-01-01,AAPL,Equity,100,150.00
+2026-01-01,MSFT,Equity,100,350.00
+2026-01-01,AGG,Bond,400,94.00
+2026-01-01,USD,Cash,5000,1.00
+2026-06-30,AAPL,Equity,100,178.50
+2026-06-30,MSFT,Equity,100,380.00
+2026-06-30,AGG,Bond,350,95.00
+2026-06-30,BND,Bond,23,100.00
+2026-06-30,USD,Cash,5000,1.00
+```
+
+### Dirty Data & Validation Behavior
+
+The API performs row-by-row validation inside an **atomic PostgreSQL transaction**:
+1. **Missing or Invalid Fields**: Checks required column presence, ISO date format (`YYYY-MM-DD`), numeric positive quantities, and non-negative prices.
+2. **Duplicate Detection**: Rejects duplicate rows within the uploaded file with row-level error details.
+3. **Atomic Rollback**: If any row in the CSV fails validation, the entire transaction is rolled back via `ROLLBACK`. Bad data **never corrupts** the database.
+
+Sample files provided in root:
+- `sample_good.csv`: Valid dataset producing **4.10% Period Return** ($92,600 → $96,400).
+- `sample_dirty.csv`: Contains a duplicate row to verify validation error handling.
+
+---
+
+## 🔒 Tenant Security & Data Isolation
+
+1. **Source of Truth**: All data access queries rely strictly on `req.user.tenantId` decoded from the verified JWT bearer token.
+2. **No Parameter Override**: URL query parameters like `?tenantId=2` or body overrides are ignored by backend handlers.
+3. **SQL Parameterization**: All queries use PostgreSQL positional placeholders (`$1`, `$2`) to eliminate SQL injection risks.
+
+---
+
+## 📑 API Endpoints
+
+### 1. Authentication
+- `POST /api/auth/login`
+  - Body: `{ "email": "tenant_a@example.com", "password": "Password123!" }`
+  - Returns: JWT Bearer Token and User metadata.
+
+### 2. Holdings Upload
+- `POST /api/holdings/upload`
+  - Header: `Authorization: Bearer <token>`
+  - Form-Data: `file` (CSV file)
+  - Returns: `{ "message": "Holdings uploaded successfully", "rowsImported": 9 }`
+
+### 3. Portfolio Dashboard
+- `GET /api/dashboard`
+  - Header: `Authorization: Bearer <token>`
+  - Returns: Pre-computed `startMarketValue`, `endMarketValue`, `periodReturn`, `startDate`, `endDate`, and `assetClasses` distribution.
+
+---
+
+## 💡 Assumptions
+
+- Each uploaded CSV represents an atomic full holdings snapshot for the tenant.
+- Valuation market value is calculated as `quantity * price`.
+- Period return formula uses earliest available date vs latest available date: `(End Market Value - Start Market Value) / Start Market Value`.
+
+---
+
+## 🔮 Future Improvements With More Time
+
+- Automated integration tests using Jest / Playwright for authentication and tenant isolation.
+- Date range and asset class filter controls on the dashboard.
+- Serving frontend via Nginx in production (implemented as bonus in `docker-compose.yml`).
+</file>
+
+<file path="sample_dirty.csv">
+date,ticker,asset_class,quantity,price
+2026-01-01,AAPL,Equity,100,150.00
+2026-01-01,MSFT,Equity,100,350.00
+2026-01-01,AGG,Bond,400,94.00
+2026-01-01,USD,Cash,5000,1.00
+2026-06-30,AAPL,Equity,100,178.50
+2026-06-30,MSFT,Equity,100,380.00
+2026-06-30,AGG,Bond,350,95.00
+2026-06-30,BND,Bond,23,100.00
+2026-06-30,USD,Cash,5000,1.00
+2026-06-30,AAPL,Equity,100,178.50
+</file>
+
+<file path="sample_good.csv">
+date,ticker,asset_class,quantity,price
+2026-01-01,AAPL,Equity,100,150.00
+2026-01-01,MSFT,Equity,100,350.00
+2026-01-01,AGG,Bond,400,94.00
+2026-01-01,USD,Cash,5000,1.00
+2026-06-30,AAPL,Equity,100,178.50
+2026-06-30,MSFT,Equity,100,380.00
+2026-06-30,AGG,Bond,350,95.00
+2026-06-30,BND,Bond,23,100.00
+2026-06-30,USD,Cash,5000,1.00
+</file>
+
+</files>
